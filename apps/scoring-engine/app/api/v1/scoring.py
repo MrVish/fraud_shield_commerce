@@ -1,14 +1,18 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.scoring.signals import OrderPayload
 from app.services.scoring_pipeline import ScoringPipeline
 from app.database import get_db
+from app.redis_client import RedisClient
+from app.config import settings
 
 router = APIRouter(prefix="/api/v1")
 
 pipeline = ScoringPipeline()
+
+QUEUE_NAME = "shieldcommerce:scoring:queue"
 
 
 class ScoreRequest(BaseModel):
@@ -66,3 +70,15 @@ async def score_order(request: ScoreRequest, db: Session = Depends(get_db)):
         signal_contributions=result["signal_contributions"],
         custom_rule_action=result.get("custom_rule_action"),
     )
+
+
+@router.post("/score/async", status_code=202)
+async def score_order_async(request: ScoreRequest):
+    """Enqueue order for async scoring. Returns immediately."""
+    try:
+        redis = RedisClient(url=settings.redis_url)
+        redis.enqueue(QUEUE_NAME, request.model_dump())
+        return {"status": "queued", "order_id": request.order_id}
+    except Exception:
+        # Fallback: if Redis is unavailable, return 503
+        raise HTTPException(status_code=503, detail="Queue unavailable")
