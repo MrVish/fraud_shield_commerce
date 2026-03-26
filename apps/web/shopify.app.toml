@@ -31,5 +31,9 @@ api_version = "2026-04"
   topics = [ "disputes/create" ]
   uri = "/webhooks/disputes-create"
 
+  [[webhooks.subscriptions]]
+  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+  uri = "/webhooks"
+
 [auth]
 redirect_urls = [ "https://example.com/api/auth" ]
