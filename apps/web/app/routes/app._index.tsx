@@ -202,7 +202,7 @@ function BarLabel({ x, y, width, value }: any) {
 
 export default function Dashboard() {
   const { stats: rawStats, recentFlagged, error } = useLoaderData<typeof loader>();
-  const stats = rawStats ?? emptyStats;
+  const stats = { ...emptyStats, ...(rawStats ?? {}) };
   const navigate = useNavigate();
 
   const flaggedPct =
@@ -250,7 +250,7 @@ export default function Dashboard() {
         <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="400">
           <KpiCard
             title="Revenue Protected"
-            value={`$${stats.revenue_protected.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            value={`$${(stats.revenue_protected || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             subtitle="High/critical risk orders caught"
             borderColor="#22C55E"
             bgTint="#F0FDF4"

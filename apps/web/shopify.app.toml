@@ -10,7 +10,7 @@ automatically_update_urls_on_dev = true
 include_config_on_deploy = true
 
 [access_scopes]
-scopes = "read_orders,write_orders,read_customers"
+scopes = "read_orders,write_orders"
 
 [webhooks]
 api_version = "2026-04"
@@ -23,13 +23,15 @@ api_version = "2026-04"
   topics = [ "app/scopes_update" ]
   uri = "/webhooks/app/scopes_update"
 
-  [[webhooks.subscriptions]]
-  topics = [ "orders/create" ]
-  uri = "/webhooks/orders-create"
+  # orders/create and disputes/create require protected customer data approval
+  # Enable after approving in Partner Dashboard > App > API access > Protected customer data
+  # [[webhooks.subscriptions]]
+  # topics = [ "orders/create" ]
+  # uri = "/webhooks/orders-create"
 
-  [[webhooks.subscriptions]]
-  topics = [ "disputes/create" ]
-  uri = "/webhooks/disputes-create"
+  # [[webhooks.subscriptions]]
+  # topics = [ "disputes/create" ]
+  # uri = "/webhooks/disputes-create"
 
   [[webhooks.subscriptions]]
   compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
