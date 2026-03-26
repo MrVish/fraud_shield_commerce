@@ -2,7 +2,7 @@ import type { ActionFunctionArgs } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { topic, shop, payload } = await authenticate.webhook(request);
+  const { topic, shop, payload, admin } = await authenticate.webhook(request);
 
   const SCORING_ENGINE_URL = process.env.SCORING_ENGINE_URL || "http://localhost:8000";
   const SCORING_API_KEY = process.env.SCORING_API_KEY || "dev-key";
@@ -32,11 +32,39 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       created_at: payload.created_at || "",
     };
 
-    await fetch(`${SCORING_ENGINE_URL}/api/v1/score`, {
+    const scoreResponse = await fetch(`${SCORING_ENGINE_URL}/api/v1/score`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-API-Key": SCORING_API_KEY },
       body: JSON.stringify(scoringPayload),
     });
+
+    // Write risk back to Shopify Order Risk API
+    if (scoreResponse.ok && admin) {
+      try {
+        const scoreResult = await scoreResponse.json();
+
+        const topSignals = scoreResult.signal_contributions
+          ?.slice(0, 3)
+          .map((s: any) => s.explanation)
+          .join("; ") || "Order scored";
+
+        await admin.rest.post({
+          path: `orders/${payload.id}/risks.json`,
+          data: {
+            risk: {
+              message: `ShieldCommerce: ${topSignals}`,
+              recommendation: scoreResult.risk_level === "critical" ? "cancel" : scoreResult.risk_level === "high" ? "investigate" : "accept",
+              score: scoreResult.risk_score / 100,
+              source: "ShieldCommerce",
+              cause_order: false,
+              display: true,
+            },
+          },
+        });
+      } catch (riskError) {
+        console.error(`[ShieldCommerce] Failed to write risk for order ${payload.id}:`, riskError);
+      }
+    }
   } catch (error) {
     console.error(`[ShieldCommerce] Error scoring order ${payload.id}:`, error);
   }
