@@ -1,60 +1,17 @@
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
 from datetime import datetime, timezone, timedelta
 
 from app.main import app
-from app.database import get_db
-from app.models.base import Base
 from app.models.merchant import Merchant, DEFAULT_SETTINGS, DEFAULT_THRESHOLDS
 from app.models.order_score import OrderScore, ScoringSignal
 from app.models.chargeback import Chargeback
 from app.models.rules import MerchantOverride
-
-# ── SQLite in-memory with shared connection via StaticPool ───────────
-
-TEST_ENGINE = create_engine(
-    "sqlite://",
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-TestSessionLocal = sessionmaker(bind=TEST_ENGINE, autocommit=False, autoflush=False)
+from tests.conftest import TestSessionLocal
 
 HEADERS = {"X-API-Key": "dev-key"}
 
-
-def override_get_db():
-    db = TestSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-app.dependency_overrides[get_db] = override_get_db
-
 client = TestClient(app)
-
-
-# ── Fixtures ─────────────────────────────────────────────────────────
-
-@pytest.fixture(autouse=True)
-def setup_db():
-    """Create all tables before each test and drop after."""
-    Base.metadata.create_all(TEST_ENGINE)
-    yield
-    Base.metadata.drop_all(TEST_ENGINE)
-
-
-@pytest.fixture
-def db_session():
-    db = TestSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 @pytest.fixture

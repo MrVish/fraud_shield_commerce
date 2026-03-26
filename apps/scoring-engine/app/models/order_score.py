@@ -13,6 +13,7 @@ class OrderScore(Base, TimestampMixin):
     risk_level: Mapped[str] = mapped_column(String(20))
     signals_json: Mapped[dict] = mapped_column(JSON)
     recommendation: Mapped[str] = mapped_column(String(50))
+    order_total: Mapped[float | None] = mapped_column(Float, nullable=True)
     rule_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     ml_score: Mapped[float | None] = mapped_column(Float, nullable=True)
 

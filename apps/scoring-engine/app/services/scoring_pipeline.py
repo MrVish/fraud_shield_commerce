@@ -25,8 +25,9 @@ class ScoringPipeline:
             raise ValueError(f"Merchant {merchant_id} not found")
 
         # 2. Compute store average order value from recent orders
-        avg_result = db.query(func.avg(OrderScore.risk_score)).filter(
-            OrderScore.merchant_id == merchant_id
+        avg_result = db.query(func.avg(OrderScore.order_total)).filter(
+            OrderScore.merchant_id == merchant_id,
+            OrderScore.order_total.isnot(None),
         ).scalar()
         store_avg = float(avg_result) if avg_result else 150.0
 
@@ -71,6 +72,7 @@ class ScoringPipeline:
             shopify_order_id=order_payload.order_id,
             risk_score=result.final_score,
             risk_level=result.risk_level,
+            order_total=order_payload.order_total,
             signals_json={
                 s.name: {"value": str(s.value), "weight": s.weight, "explanation": s.explanation}
                 for s in signals.all_signals()

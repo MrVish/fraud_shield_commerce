@@ -1,8 +1,28 @@
+import pytest
 from fastapi.testclient import TestClient
+
 from app.main import app
+from app.models.merchant import Merchant
+from tests.conftest import TestSessionLocal
 
 client = TestClient(app)
 HEADERS = {"X-API-Key": "dev-key"}
+
+
+@pytest.fixture(autouse=True)
+def seed_merchant(setup_db):
+    """Seed a test merchant for scoring tests."""
+    db = TestSessionLocal()
+    merchant = Merchant(
+        id=1,
+        shop_domain="test-store.myshopify.com",
+        access_token_encrypted="enc",
+        plan_tier="starter",
+    )
+    db.add(merchant)
+    db.commit()
+    db.close()
+
 
 SAMPLE_ORDER = {
     "order_id": "1001", "merchant_id": 1, "email": "test@gmail.com",
@@ -30,6 +50,15 @@ def test_score_order_returns_all_fields():
     assert "rule_score" in data
     assert "ml_score" in data
     assert "recommendation" in data
+
+
+def test_score_order_persists_to_db():
+    """Verify the pipeline persists the score to the database."""
+    client.post("/api/v1/score", json=SAMPLE_ORDER, headers=HEADERS)
+    response = client.get("/api/v1/merchants/1/orders", headers=HEADERS)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] >= 1
 
 
 def test_score_order_requires_api_key():

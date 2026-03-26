@@ -1,14 +1,14 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from app.scoring.signals import SignalExtractor, OrderPayload
-from app.scoring.combined_scorer import CombinedScorer
-from app.enrichment.registry import EnrichmentRegistry
+from sqlalchemy.orm import Session
+
+from app.scoring.signals import OrderPayload
+from app.services.scoring_pipeline import ScoringPipeline
+from app.database import get_db
 
 router = APIRouter(prefix="/api/v1")
 
-enrichment = EnrichmentRegistry()
-extractor = SignalExtractor(enrichment)
-scorer = CombinedScorer()
+pipeline = ScoringPipeline()
 
 
 class ScoreRequest(BaseModel):
@@ -45,18 +45,24 @@ class ScoreResponse(BaseModel):
     rule_score: float
     ml_score: float
     signal_contributions: list[dict]
+    custom_rule_action: str | None = None
 
 
 @router.post("/score", response_model=ScoreResponse)
-async def score_order(request: ScoreRequest):
+async def score_order(request: ScoreRequest, db: Session = Depends(get_db)):
     payload = request.model_dump()
-    payload.pop("merchant_id", None)
+    merchant_id = payload.pop("merchant_id")
     order = OrderPayload(**payload)
-    signals = extractor.extract(order, store_avg_order=150.0)
-    result = scorer.score(signals)
+
+    result = pipeline.score_order(db, merchant_id, order)
+
     return ScoreResponse(
-        order_id=request.order_id, risk_score=result.final_score,
-        risk_level=result.risk_level, recommendation=result.recommendation,
-        rule_score=result.rule_score, ml_score=result.ml_score,
-        signal_contributions=result.signal_contributions,
+        order_id=result["order_id"],
+        risk_score=result["risk_score"],
+        risk_level=result["risk_level"],
+        recommendation=result["recommendation"],
+        rule_score=result["rule_score"],
+        ml_score=result["ml_score"],
+        signal_contributions=result["signal_contributions"],
+        custom_rule_action=result.get("custom_rule_action"),
     )
