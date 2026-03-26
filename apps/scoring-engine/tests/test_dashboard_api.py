@@ -38,14 +38,15 @@ def merchant_with_orders(db_session, merchant):
             risk_score=score, risk_level=level,
             signals_json={"test": True}, recommendation=rec,
             rule_score=float(score), ml_score=float(score),
+            order_total=total,
             created_at=now - timedelta(days=i),
         )
-        for i, (score, level, rec) in enumerate([
-            (15, "low", "approve"),
-            (45, "medium", "review"),
-            (75, "high", "review"),
-            (92, "critical", "cancel"),
-            (30, "low", "approve"),
+        for i, (score, level, rec, total) in enumerate([
+            (15, "low", "approve", 50.0),
+            (45, "medium", "review", 120.0),
+            (75, "high", "review", 350.0),
+            (92, "critical", "cancel", 487.0),
+            (30, "low", "approve", 89.99),
         ])
     ]
     db_session.add_all(orders)
@@ -97,8 +98,12 @@ def test_dashboard_stats_structure(merchant_with_orders, merchant):
     assert "chargeback_amount" in data
     assert "score_distribution" in data
     assert "trend_data" in data
+    assert "revenue_protected" in data
+    assert "chargeback_rate" in data
+    assert "chargeback_health" in data
     assert data["total_orders"] == 5
     assert data["flagged_orders"] == 2  # high + critical
+    assert data["chargeback_health"] == "good"
 
 
 def test_dashboard_stats_score_distribution(merchant_with_orders, merchant):
@@ -165,6 +170,8 @@ def test_order_detail(order_with_signals, merchant):
     assert len(data["signals"]) == 2
     signal_names = [s["name"] for s in data["signals"]]
     assert "vpn_detected" in signal_names
+    assert "risk_summary" in data
+    assert len(data["risk_summary"]) > 0
 
 
 def test_order_detail_not_found(merchant):
@@ -318,6 +325,13 @@ def test_register_merchant_upsert(merchant):
 
 # ── Dashboard with Chargebacks ───────────────────────────────────────
 
+def test_dashboard_revenue_protected(merchant_with_orders, merchant):
+    resp = client.get(f"/api/v1/merchants/{merchant.id}/dashboard?days=30", headers=HEADERS)
+    data = resp.json()
+    # high (350.0) + critical (487.0) = 837.0
+    assert data["revenue_protected"] == 837.0
+
+
 def test_dashboard_with_chargebacks(db_session, merchant_with_orders, merchant):
     now = datetime.now(timezone.utc)
     cb = Chargeback(
@@ -334,3 +348,6 @@ def test_dashboard_with_chargebacks(db_session, merchant_with_orders, merchant):
     data = resp.json()
     assert data["chargeback_count"] == 1
     assert data["chargeback_amount"] == 199.99
+    # 1 chargeback / 5 orders = 20% - elevated
+    assert data["chargeback_rate"] == 20.0
+    assert data["chargeback_health"] == "elevated"

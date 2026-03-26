@@ -75,6 +75,9 @@ const emptyStats: DashboardStats = {
   chargeback_amount: 0,
   score_distribution: [],
   trend_data: [],
+  revenue_protected: 0,
+  chargeback_rate: 0,
+  chargeback_health: "good",
 };
 
 function getScoreBarColor(label: string): string {
@@ -222,7 +225,7 @@ export default function Dashboard() {
         )}
 
         {/* KPI Cards */}
-        <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="400">
+        <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="400">
           <KpiCard
             title="Total Orders (30d)"
             value={stats.total_orders.toLocaleString()}
@@ -242,10 +245,58 @@ export default function Dashboard() {
             subtitle={stats.avg_score > 50 ? "Above threshold" : "Within safe range"}
             borderColor={stats.avg_score > 50 ? "#F59E0B" : "#22C55E"}
           />
+        </InlineGrid>
+
+        <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="400">
           <KpiCard
-            title="Chargebacks"
-            value={String(stats.chargeback_count)}
-            subtitle={`$${stats.chargeback_amount.toFixed(2)} total`}
+            title="Revenue Protected"
+            value={`$${stats.revenue_protected.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            subtitle="High/critical risk orders caught"
+            borderColor="#22C55E"
+            bgTint="#F0FDF4"
+          />
+          <div
+            style={{
+              borderLeft: `4px solid ${stats.chargeback_health === "good" ? "#22C55E" : stats.chargeback_health === "at_risk" ? "#F59E0B" : "#EF4444"}`,
+              backgroundColor: stats.chargeback_count > 0 ? "#FFFBEB" : "#FFFFFF",
+              borderRadius: "12px",
+              padding: "16px 20px",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+              minHeight: "100px",
+              display: "flex",
+              flexDirection: "column" as const,
+              justifyContent: "center",
+            }}
+          >
+            <Text as="p" variant="bodySm" tone="subdued">
+              Chargebacks
+            </Text>
+            <div style={{ marginTop: "4px", display: "flex", alignItems: "center", gap: "8px" }}>
+              <Text as="p" variant="heading2xl">
+                {String(stats.chargeback_count)}
+              </Text>
+              <span style={{
+                display: "inline-block",
+                padding: "2px 8px",
+                borderRadius: "12px",
+                fontSize: "11px",
+                fontWeight: 600,
+                backgroundColor: stats.chargeback_health === "good" ? "#DCFCE7" : stats.chargeback_health === "at_risk" ? "#FEF9C3" : "#FEE2E2",
+                color: stats.chargeback_health === "good" ? "#166534" : stats.chargeback_health === "at_risk" ? "#854D0E" : "#991B1B",
+              }}>
+                {stats.chargeback_health === "good" ? "Good Standing" : stats.chargeback_health === "at_risk" ? "At Risk" : "Elevated Risk"}
+              </span>
+            </div>
+            <div style={{ marginTop: "2px" }}>
+              <Text as="p" variant="bodySm" tone="subdued">
+                {stats.chargeback_rate.toFixed(2)}% rate | ${stats.chargeback_amount.toFixed(2)} total
+              </Text>
+            </div>
+          </div>
+          <KpiCard
+            title="Chargeback Amount"
+            value={`$${stats.chargeback_amount.toFixed(2)}`}
+            subtitle={stats.chargeback_count > 0 ? `${stats.chargeback_count} disputes filed` : "No disputes"}
             borderColor="#F59E0B"
             bgTint={stats.chargeback_count > 0 ? "#FFFBEB" : undefined}
           />

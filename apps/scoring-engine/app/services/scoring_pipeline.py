@@ -9,6 +9,7 @@ from app.models.merchant import Merchant
 from app.models.order_score import OrderScore, ScoringSignal
 from app.models.rules import WhitelistBlacklist
 from app.services.email_service import EmailService, AlertEmail
+from app.services.risk_summary import generate_risk_summary
 
 
 class ScoringPipeline:
@@ -66,7 +67,10 @@ class ScoringPipeline:
             result.recommendation = "cancel"
             result.custom_rule_action = "block"
 
-        # 6. Persist OrderScore to DB
+        # 6. Generate risk summary
+        risk_summary = generate_risk_summary(result.final_score, result.risk_level, result.signal_contributions)
+
+        # 7. Persist OrderScore to DB
         order_score = OrderScore(
             merchant_id=merchant_id,
             shopify_order_id=order_payload.order_id,
@@ -80,6 +84,7 @@ class ScoringPipeline:
             recommendation=result.recommendation,
             rule_score=result.rule_score,
             ml_score=result.ml_score,
+            risk_summary=risk_summary,
         )
         db.add(order_score)
         db.commit()
@@ -96,7 +101,7 @@ class ScoringPipeline:
             ))
         db.commit()
 
-        # 7. Email alert if needed
+        # 8. Email alert if needed
         settings = merchant.settings_json or {}
         if settings.get("email_alerts_enabled") and result.risk_level in settings.get("alert_on_risk_levels", []):
             digest_email = settings.get("digest_email", "")
@@ -120,4 +125,5 @@ class ScoringPipeline:
             "ml_score": result.ml_score,
             "signal_contributions": result.signal_contributions,
             "custom_rule_action": result.custom_rule_action,
+            "risk_summary": risk_summary,
         }

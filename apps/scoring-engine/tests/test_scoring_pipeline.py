@@ -94,6 +94,8 @@ def test_pipeline_returns_expected_fields(db_session, merchant):
     assert "rule_score" in result
     assert "ml_score" in result
     assert "signal_contributions" in result
+    assert "risk_summary" in result
+    assert isinstance(result["risk_summary"], str)
     assert 0 <= result["risk_score"] <= 100
 
 

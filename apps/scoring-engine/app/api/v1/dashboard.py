@@ -10,6 +10,7 @@ from app.models.merchant import Merchant
 from app.models.order_score import OrderScore, ScoringSignal
 from app.models.chargeback import Chargeback
 from app.models.rules import MerchantOverride, WhitelistBlacklist
+from app.services.risk_summary import generate_risk_summary
 
 router = APIRouter(prefix="/api/v1/merchants")
 
@@ -24,6 +25,9 @@ class DashboardStats(BaseModel):
     chargeback_amount: float
     score_distribution: list[dict]
     trend_data: list[dict]
+    revenue_protected: float = 0.0
+    chargeback_rate: float = 0.0
+    chargeback_health: str = "good"
 
 
 class OrderSummary(BaseModel):
@@ -54,6 +58,7 @@ class OrderDetail(BaseModel):
     signals: list[dict]
     override: Optional[dict] = None
     created_at: Optional[str] = None
+    risk_summary: str = ""
 
 
 class OverrideRequest(BaseModel):
@@ -143,6 +148,20 @@ def get_dashboard(merchant_id: int, days: int = Query(default=30, ge=1, le=365),
         for day, scores in daily.items()
     ], key=lambda x: x["date"])
 
+    # Revenue protected: sum of order_total for high/critical risk orders
+    revenue_protected = round(
+        sum(o.order_total for o in orders if o.risk_level in ("high", "critical") and o.order_total), 2
+    )
+
+    # Chargeback rate and health
+    chargeback_rate = round((chargeback_count / total_orders * 100), 2) if total_orders > 0 else 0.0
+    if chargeback_rate < 0.4:
+        chargeback_health = "good"
+    elif chargeback_rate <= 0.6:
+        chargeback_health = "at_risk"
+    else:
+        chargeback_health = "elevated"
+
     return DashboardStats(
         total_orders=total_orders,
         flagged_orders=flagged_orders,
@@ -151,6 +170,9 @@ def get_dashboard(merchant_id: int, days: int = Query(default=30, ge=1, le=365),
         chargeback_amount=chargeback_amount,
         score_distribution=score_distribution,
         trend_data=trend_data,
+        revenue_protected=revenue_protected,
+        chargeback_rate=chargeback_rate,
+        chargeback_health=chargeback_health,
     )
 
 
@@ -211,6 +233,15 @@ def get_order_detail(merchant_id: int, order_id: int, db: Session = Depends(get_
             "reason": order.override.reason,
         }
 
+    # Generate risk summary from stored value or compute on the fly
+    risk_summary = order.risk_summary or ""
+    if not risk_summary:
+        signal_contributions = [
+            {"signal_name": s.signal_name, "explanation": (s.raw_data_json or {}).get("explanation", ""), "points_added": s.signal_weight}
+            for s in signals if s.signal_weight > 0
+        ]
+        risk_summary = generate_risk_summary(order.risk_score, order.risk_level, signal_contributions)
+
     return OrderDetail(
         id=order.id,
         shopify_order_id=order.shopify_order_id,
@@ -231,6 +262,7 @@ def get_order_detail(merchant_id: int, order_id: int, db: Session = Depends(get_
         ],
         override=override_data,
         created_at=order.created_at.isoformat() if order.created_at else None,
+        risk_summary=risk_summary,
     )
 
 

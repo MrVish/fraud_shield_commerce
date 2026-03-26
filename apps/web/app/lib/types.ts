@@ -8,6 +8,7 @@ export interface OrderScore {
   rule_score: number | null;
   ml_score: number | null;
   created_at: string;
+  risk_summary?: string;
 }
 
 export interface ScoringSignal {
@@ -25,6 +26,9 @@ export interface DashboardStats {
   chargeback_amount: number;
   score_distribution: { label: string; count: number }[];
   trend_data: { date: string; avg_score: number; count: number }[];
+  revenue_protected: number;
+  chargeback_rate: number;
+  chargeback_health: string;
 }
 
 export interface MerchantSettings {

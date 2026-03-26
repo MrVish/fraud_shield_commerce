@@ -16,6 +16,7 @@ class OrderScore(Base, TimestampMixin):
     order_total: Mapped[float | None] = mapped_column(Float, nullable=True)
     rule_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     ml_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    risk_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     merchant = relationship("Merchant", back_populates="order_scores")
     signals = relationship("ScoringSignal", back_populates="order_score", cascade="all, delete-orphan")

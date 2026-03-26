@@ -28,6 +28,7 @@ interface LoaderData {
   signals: ScoringSignal[];
   override: Record<string, unknown> | null;
   error: string | null;
+  riskSummary: string;
 }
 
 interface ActionData {
@@ -40,7 +41,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   const orderId = params.orderId;
   if (!orderId) {
-    return json({ score: null, signals: [], override: null, error: "Missing order ID" } satisfies LoaderData);
+    return json({ score: null, signals: [], override: null, error: "Missing order ID", riskSummary: "" } satisfies LoaderData);
   }
 
   try {
@@ -55,6 +56,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       })),
       override: detail.override,
       error: null,
+      riskSummary: (detail as any).risk_summary || "",
     } satisfies LoaderData);
   } catch (e) {
     console.error("[ShieldCommerce] Order detail load error:", e);
@@ -63,6 +65,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       signals: [],
       override: null,
       error: "Unable to load order details.",
+      riskSummary: "",
     } satisfies LoaderData);
   }
 };
@@ -344,7 +347,7 @@ function ScoreCompositionBar({
 }
 
 export default function OrderDetail() {
-  const { score, signals, override, error } = useLoaderData<typeof loader>();
+  const { score, signals, override, error, riskSummary } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const submit = useSubmit();
   const navigation = useNavigation();
@@ -429,6 +432,27 @@ export default function OrderDetail() {
           <Banner tone="critical">
             <p>{actionData.error}</p>
           </Banner>
+        )}
+
+        {/* Risk Summary Banner */}
+        {riskSummary && (
+          <Card>
+            <BlockStack gap="200">
+              <InlineStack gap="200" blockAlign="center">
+                <div style={{
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "50%",
+                  backgroundColor: score.risk_level === "critical" ? "#991B1B" : score.risk_level === "high" ? "#EF4444" : score.risk_level === "medium" ? "#F59E0B" : "#22C55E",
+                  flexShrink: 0,
+                }} />
+                <Text as="h2" variant="headingMd">Risk Summary</Text>
+              </InlineStack>
+              <Text as="p" variant="bodyMd">
+                {riskSummary}
+              </Text>
+            </BlockStack>
+          </Card>
         )}
 
         <Layout>
@@ -537,24 +561,37 @@ export default function OrderDetail() {
 
             {sortedCategories.map(([category, categorySignals]) => {
               const categoryPoints = categorySignals.reduce((s, sig) => s + sig.signal_weight, 0);
+              const maxCatWeight = categorySignals.reduce((s, sig) => s + Math.max(sig.signal_weight, sig.raw_data_json?.max_weight ?? sig.signal_weight, 5), 0);
               return (
                 <div key={category}>
                   <div
                     style={{
                       backgroundColor: "#F8FAFC",
-                      padding: "8px 16px",
+                      padding: "10px 16px",
                       borderRadius: "6px",
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
                     }}
                   >
-                    <Text as="p" variant="headingSm">
-                      {category}
-                    </Text>
-                    <Text as="p" variant="bodySm" tone="subdued">
-                      {categoryPoints > 0 ? `+${categoryPoints} pts` : "0 pts"}
-                    </Text>
+                    <Text as="p" variant="headingSm">{category}</Text>
+                    <InlineStack gap="200" blockAlign="center">
+                      {/* Mini progress bar for category */}
+                      <div style={{
+                        width: "60px", height: "6px", backgroundColor: "#E2E8F0",
+                        borderRadius: "3px", overflow: "hidden"
+                      }}>
+                        <div style={{
+                          width: `${maxCatWeight > 0 ? Math.min((categoryPoints / maxCatWeight) * 100, 100) : 0}%`,
+                          height: "100%",
+                          backgroundColor: categoryPoints > 0 ? "#EF4444" : "#22C55E",
+                          borderRadius: "3px",
+                        }} />
+                      </div>
+                      <Text as="p" variant="bodySm" fontWeight="semibold">
+                        {categoryPoints > 0 ? `+${categoryPoints}` : "0"} pts
+                      </Text>
+                    </InlineStack>
                   </div>
                   {categorySignals
                     .sort((a, b) => b.signal_weight - a.signal_weight)
