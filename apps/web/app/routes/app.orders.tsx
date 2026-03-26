@@ -38,7 +38,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     const result = await getOrderScores(1, page, limit, riskLevel || undefined);
     return {
-      orders: result.items,
+      orders: result.orders,
       total: result.total,
       page,
       limit,

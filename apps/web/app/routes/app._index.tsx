@@ -124,7 +124,7 @@ export default function Dashboard() {
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={stats.score_distribution}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="range" />
+                      <XAxis dataKey="label" />
                       <YAxis />
                       <Tooltip />
                       <Bar dataKey="count" fill="#5C6AC4" radius={[4, 4, 0, 0]} />
@@ -159,7 +159,7 @@ export default function Dashboard() {
                       />
                       <Line
                         type="monotone"
-                        dataKey="order_count"
+                        dataKey="count"
                         stroke="#5C6AC4"
                         strokeWidth={2}
                         dot={false}

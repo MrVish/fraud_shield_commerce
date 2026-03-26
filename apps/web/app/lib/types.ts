@@ -23,8 +23,8 @@ export interface DashboardStats {
   avg_score: number;
   chargeback_count: number;
   chargeback_amount: number;
-  score_distribution: { range: string; count: number }[];
-  trend_data: { date: string; avg_score: number; order_count: number }[];
+  score_distribution: { label: string; count: number }[];
+  trend_data: { date: string; avg_score: number; count: number }[];
 }
 
 export interface MerchantSettings {

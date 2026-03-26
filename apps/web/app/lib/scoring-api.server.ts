@@ -22,13 +22,13 @@ export async function getDashboardStats(merchantId: number, days: number = 30): 
   return apiRequest(`/api/v1/merchants/${merchantId}/dashboard?days=${days}`);
 }
 
-export async function getOrderScores(merchantId: number, page: number = 1, limit: number = 20, riskLevel?: string): Promise<{ items: OrderScore[]; total: number }> {
+export async function getOrderScores(merchantId: number, page: number = 1, limit: number = 20, riskLevel?: string): Promise<{ orders: OrderScore[]; total: number; page: number; limit: number }> {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (riskLevel) params.set("risk_level", riskLevel);
   return apiRequest(`/api/v1/merchants/${merchantId}/orders?${params}`);
 }
 
-export async function getOrderDetail(merchantId: number, orderId: string): Promise<{ score: OrderScore; signals: ScoringSignal[]; override: any }> {
+export async function getOrderDetail(merchantId: number, orderId: string): Promise<OrderScore & { signals: { name: string; value: string; weight: number; raw_data: any }[]; override: any }> {
   return apiRequest(`/api/v1/merchants/${merchantId}/orders/${orderId}`);
 }
 

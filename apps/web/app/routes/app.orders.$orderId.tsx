@@ -45,8 +45,13 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   try {
     const detail = await getOrderDetail(1, orderId);
     return {
-      score: detail.score,
-      signals: detail.signals,
+      score: detail,
+      signals: detail.signals.map((s) => ({
+        signal_name: s.name,
+        signal_value: s.value,
+        signal_weight: s.weight,
+        raw_data_json: s.raw_data,
+      })),
       override: detail.override,
       error: null,
     } satisfies LoaderData;
