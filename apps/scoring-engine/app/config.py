@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     # MaxMind
     maxmind_db_path: str = "data/GeoLite2-City.mmdb"
 
+    # Sentry
+    sentry_dsn: str = ""
+
     model_config = {"env_file": ".env", "env_prefix": "SC_"}
 
 
