@@ -1,0 +1,5 @@
+{
+  "name": "shieldcommerce",
+  "private": true,
+  "workspaces": ["apps/web"]
+}

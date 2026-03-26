@@ -1,0 +1,33 @@
+# Node
+node_modules/
+.cache/
+build/
+dist/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ML models
+*.pkl
+*.joblib
+!apps/scoring-engine/models/.gitkeep
+
+# Docker
+docker-compose.override.yml
