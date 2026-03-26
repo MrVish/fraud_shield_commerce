@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     # Internal API key for Remix -> FastAPI auth
     internal_api_key: str = "dev-key"
 
+    # CORS allowed origins (comma-separated, used when debug=False)
+    allowed_origins: str = "https://shieldcommerce.app"
+
     # Encryption
     encryption_key: str = "change-me-in-production-32-bytes!"
 
