@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import type { LoaderFunctionArgs } from "@remix-run/node";
+import { json, type LoaderFunctionArgs } from "@remix-run/node";
 import { useLoaderData, useNavigate, useSearchParams } from "@remix-run/react";
 import {
   Page,
@@ -12,6 +12,7 @@ import {
   InlineStack,
   Pagination,
   Banner,
+  Box,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
@@ -24,6 +25,7 @@ interface LoaderData {
   page: number;
   limit: number;
   riskLevel: string;
+  needsReviewCount: number;
   error: string | null;
 }
 
@@ -36,25 +38,34 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const riskLevel = url.searchParams.get("risk_level") || "";
 
   try {
-    const result = await getOrderScores(1, page, limit, riskLevel || undefined);
-    return {
-      orders: result.orders,
-      total: result.total,
+    const [result, highResult, criticalResult] = await Promise.all([
+      getOrderScores(1, page, limit, riskLevel || undefined),
+      getOrderScores(1, 1, 1, "high"),
+      getOrderScores(1, 1, 1, "critical"),
+    ]);
+
+    const needsReviewCount = (highResult.total ?? 0) + (criticalResult.total ?? 0);
+
+    return json({
+      orders: result.orders ?? [],
+      total: result.total ?? 0,
       page,
       limit,
       riskLevel,
+      needsReviewCount,
       error: null,
-    } satisfies LoaderData;
+    });
   } catch (e) {
     console.error("[ShieldCommerce] Orders load error:", e);
-    return {
+    return json({
       orders: [],
       total: 0,
       page,
       limit,
       riskLevel,
+      needsReviewCount: 0,
       error: "Unable to load orders from scoring engine.",
-    } satisfies LoaderData;
+    });
   }
 };
 
@@ -67,24 +78,55 @@ function riskBadgeTone(level: string): "critical" | "warning" | "success" | "att
   }
 }
 
+function getScoreDotColor(score: number): string {
+  if (score <= 30) return "#22C55E";
+  if (score <= 60) return "#F59E0B";
+  if (score <= 80) return "#EF4444";
+  return "#991B1B";
+}
+
+function ScoreDot({ score }: { score: number }) {
+  return (
+    <InlineStack gap="200" blockAlign="center">
+      <span
+        style={{
+          display: "inline-block",
+          width: "10px",
+          height: "10px",
+          borderRadius: "50%",
+          backgroundColor: getScoreDotColor(score),
+          flexShrink: 0,
+        }}
+      />
+      <Text as="span" variant="bodyMd" fontWeight="semibold">
+        {score}
+      </Text>
+    </InlineStack>
+  );
+}
+
 export default function Orders() {
-  const { orders, total, page, limit, riskLevel, error } = useLoaderData<LoaderData>();
+  const { orders, total, page, limit, riskLevel, needsReviewCount, error } =
+    useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [selectedRisk, setSelectedRisk] = useState(riskLevel);
 
-  const handleRiskChange = useCallback((value: string) => {
-    setSelectedRisk(value);
-    const params = new URLSearchParams(searchParams);
-    if (value) {
-      params.set("risk_level", value);
-    } else {
-      params.delete("risk_level");
-    }
-    params.set("page", "1");
-    setSearchParams(params);
-  }, [searchParams, setSearchParams]);
+  const handleRiskChange = useCallback(
+    (value: string) => {
+      setSelectedRisk(value);
+      const params = new URLSearchParams(searchParams);
+      if (value) {
+        params.set("risk_level", value);
+      } else {
+        params.delete("risk_level");
+      }
+      params.set("page", "1");
+      setSearchParams(params);
+    },
+    [searchParams, setSearchParams],
+  );
 
   const totalPages = Math.ceil(total / limit);
   const hasPrev = page > 1;
@@ -115,16 +157,18 @@ export default function Orders() {
         </Text>
       </IndexTable.Cell>
       <IndexTable.Cell>
-        <Text as="span" variant="bodyMd">
-          {order.risk_score}
-        </Text>
+        <ScoreDot score={order.risk_score} />
       </IndexTable.Cell>
       <IndexTable.Cell>
         <Badge tone={riskBadgeTone(order.risk_level)}>
           {order.risk_level.toUpperCase()}
         </Badge>
       </IndexTable.Cell>
-      <IndexTable.Cell>{order.recommendation}</IndexTable.Cell>
+      <IndexTable.Cell>
+        <Text as="span" variant="bodyMd">
+          {order.recommendation}
+        </Text>
+      </IndexTable.Cell>
       <IndexTable.Cell>
         {new Date(order.created_at).toLocaleDateString()}
       </IndexTable.Cell>
@@ -141,9 +185,24 @@ export default function Orders() {
           </Banner>
         )}
 
+        {needsReviewCount > 0 && (
+          <Banner
+            tone="warning"
+            title={`${needsReviewCount} orders need review`}
+            action={{
+              content: "Show flagged orders",
+              onAction: () => handleRiskChange("high"),
+            }}
+          >
+            <p>
+              There are {needsReviewCount} orders flagged as high or critical risk that require manual review.
+            </p>
+          </Banner>
+        )}
+
         <Card>
           <BlockStack gap="400">
-            <InlineStack align="start" gap="400">
+            <InlineStack align="space-between" blockAlign="center">
               <Select
                 label="Filter by Risk Level"
                 labelInline
@@ -157,6 +216,9 @@ export default function Orders() {
                 value={selectedRisk}
                 onChange={handleRiskChange}
               />
+              <Text as="p" variant="bodySm" tone="subdued">
+                {total} order{total !== 1 ? "s" : ""} total
+              </Text>
             </InlineStack>
 
             <IndexTable
