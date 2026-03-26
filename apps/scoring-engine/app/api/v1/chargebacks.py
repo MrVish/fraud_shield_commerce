@@ -13,7 +13,8 @@ router = APIRouter(prefix="/api/v1")
 
 
 class ChargebackCreate(BaseModel):
-    merchant_id: int
+    merchant_id: Optional[int] = None
+    shop_domain: Optional[str] = None
     shopify_order_id: str
     dispute_type: str
     amount: float
@@ -33,14 +34,18 @@ class ChargebackResponse(BaseModel):
 
 @router.post("/chargebacks", response_model=ChargebackResponse, status_code=201)
 def record_chargeback(body: ChargebackCreate, db: Session = Depends(get_db)):
-    # Validate merchant exists
-    merchant = db.query(Merchant).filter(Merchant.id == body.merchant_id).first()
+    # Resolve merchant by ID or shop_domain
+    merchant = None
+    if body.merchant_id:
+        merchant = db.query(Merchant).filter(Merchant.id == body.merchant_id).first()
+    elif body.shop_domain:
+        merchant = db.query(Merchant).filter(Merchant.shop_domain == body.shop_domain).first()
     if not merchant:
         raise HTTPException(status_code=404, detail="Merchant not found")
 
     # Try to link to an existing order score
     order_score = db.query(OrderScore).filter(
-        OrderScore.merchant_id == body.merchant_id,
+        OrderScore.merchant_id == merchant.id,
         OrderScore.shopify_order_id == body.shopify_order_id,
     ).first()
 
@@ -59,7 +64,7 @@ def record_chargeback(body: ChargebackCreate, db: Session = Depends(get_db)):
             pass
 
     chargeback = Chargeback(
-        merchant_id=body.merchant_id,
+        merchant_id=merchant.id,
         shopify_order_id=body.shopify_order_id,
         order_score_id=order_score_id,
         dispute_type=body.dispute_type,
