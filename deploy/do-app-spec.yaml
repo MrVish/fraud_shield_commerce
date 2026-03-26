@@ -1,0 +1,59 @@
+name: shieldcommerce
+region: nyc
+
+services:
+  - name: web
+    source_dir: apps/web
+    github:
+      repo: MrVish/fraud_shield_commerce
+      branch: main
+      deploy_on_push: true
+    build_command: npm ci && npm run build
+    run_command: npm start
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    http_port: 3000
+    envs:
+      - key: SCORING_ENGINE_URL
+        value: ${scoring-engine.PRIVATE_URL}
+      - key: SCORING_API_KEY
+        type: SECRET
+        value: change-in-production
+
+  - name: scoring-engine
+    dockerfile_path: apps/scoring-engine/Dockerfile
+    source_dir: apps/scoring-engine
+    github:
+      repo: MrVish/fraud_shield_commerce
+      branch: main
+      deploy_on_push: true
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    http_port: 8000
+    envs:
+      - key: SC_DATABASE_URL
+        value: ${db.DATABASE_URL}
+      - key: SC_REDIS_URL
+        value: ${cache.REDIS_URL}
+      - key: SC_ENCRYPTION_KEY
+        type: SECRET
+        value: change-in-production
+      - key: SC_INTERNAL_API_KEY
+        type: SECRET
+        value: change-in-production
+      - key: SC_SENDGRID_API_KEY
+        type: SECRET
+        value: ""
+
+databases:
+  - name: db
+    engine: PG
+    version: "16"
+    size: db-s-1vcpu-1gb
+    num_nodes: 1
+
+  - name: cache
+    engine: REDIS
+    version: "7"
+    size: db-s-1vcpu-1gb
+    num_nodes: 1
