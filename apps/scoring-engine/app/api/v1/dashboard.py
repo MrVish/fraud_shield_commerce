@@ -9,7 +9,7 @@ from app.database import get_db
 from app.models.merchant import Merchant
 from app.models.order_score import OrderScore, ScoringSignal
 from app.models.chargeback import Chargeback
-from app.models.rules import MerchantOverride
+from app.models.rules import MerchantOverride, WhitelistBlacklist
 
 router = APIRouter(prefix="/api/v1/merchants")
 
@@ -309,3 +309,59 @@ def update_settings(merchant_id: int, body: SettingsUpdate, db: Session = Depend
         settings=merchant.settings_json or {},
         thresholds=merchant.thresholds_json or {},
     )
+
+
+# ── Whitelist / Blacklist ────────────────────────────────────────────
+
+class WBLEntry(BaseModel):
+    entry_type: str  # email, ip, bin
+    value: str
+    list_type: str  # allow, block
+
+
+class WBLResponse(BaseModel):
+    id: int
+    entry_type: str
+    value: str
+    list_type: str
+
+
+@router.get("/{merchant_id}/lists", response_model=list[WBLResponse])
+def get_lists(merchant_id: int, db: Session = Depends(get_db)):
+    _get_merchant_or_404(db, merchant_id)
+    entries = db.query(WhitelistBlacklist).filter(
+        WhitelistBlacklist.merchant_id == merchant_id
+    ).all()
+    return [
+        WBLResponse(id=e.id, entry_type=e.entry_type, value=e.value, list_type=e.list_type)
+        for e in entries
+    ]
+
+
+@router.post("/{merchant_id}/lists", response_model=WBLResponse, status_code=201)
+def add_list_entry(merchant_id: int, body: WBLEntry, db: Session = Depends(get_db)):
+    _get_merchant_or_404(db, merchant_id)
+    entry = WhitelistBlacklist(
+        merchant_id=merchant_id,
+        entry_type=body.entry_type,
+        value=body.value,
+        list_type=body.list_type,
+    )
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    return WBLResponse(id=entry.id, entry_type=entry.entry_type, value=entry.value, list_type=entry.list_type)
+
+
+@router.delete("/{merchant_id}/lists/{entry_id}", status_code=204)
+def delete_list_entry(merchant_id: int, entry_id: int, db: Session = Depends(get_db)):
+    _get_merchant_or_404(db, merchant_id)
+    entry = db.query(WhitelistBlacklist).filter(
+        WhitelistBlacklist.id == entry_id,
+        WhitelistBlacklist.merchant_id == merchant_id,
+    ).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    db.delete(entry)
+    db.commit()
+    return None

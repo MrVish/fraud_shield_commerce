@@ -49,3 +49,28 @@ export async function updateMerchantSettings(merchantId: number, settings: Parti
     body: JSON.stringify(settings),
   });
 }
+
+export interface ListEntry {
+  id: number;
+  entry_type: string;
+  value: string;
+  list_type: string;
+}
+
+export async function getListEntries(merchantId: number): Promise<ListEntry[]> {
+  return apiRequest(`/api/v1/merchants/${merchantId}/lists`);
+}
+
+export async function addListEntry(merchantId: number, entry: { entry_type: string; value: string; list_type: string }): Promise<ListEntry> {
+  return apiRequest(`/api/v1/merchants/${merchantId}/lists`, {
+    method: "POST",
+    body: JSON.stringify(entry),
+  });
+}
+
+export async function deleteListEntry(merchantId: number, entryId: number): Promise<void> {
+  await fetch(`${SCORING_ENGINE_URL}/api/v1/merchants/${merchantId}/lists/${entryId}`, {
+    method: "DELETE",
+    headers: { "X-API-Key": SCORING_API_KEY },
+  });
+}
