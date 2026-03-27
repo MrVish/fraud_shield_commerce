@@ -46,17 +46,29 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   try {
     const detail = await getOrderDetail(1, orderId);
+    const score: OrderScore = {
+      id: detail.id,
+      shopify_order_id: detail.shopify_order_id,
+      risk_score: detail.risk_score ?? 0,
+      risk_level: detail.risk_level ?? "low",
+      signals_json: detail.signals_json ?? {},
+      recommendation: detail.recommendation ?? "review",
+      rule_score: detail.rule_score ?? null,
+      ml_score: detail.ml_score ?? null,
+      created_at: detail.created_at ?? new Date().toISOString(),
+      risk_summary: (detail as any).risk_summary ?? "",
+    };
     return json({
-      score: detail,
-      signals: detail.signals.map((s) => ({
-        signal_name: s.name,
-        signal_value: s.value,
-        signal_weight: s.weight,
-        raw_data_json: s.raw_data,
+      score,
+      signals: (detail.signals ?? []).map((s) => ({
+        signal_name: s.name ?? "",
+        signal_value: s.value ?? "",
+        signal_weight: s.weight ?? 0,
+        raw_data_json: s.raw_data ?? null,
       })),
-      override: detail.override,
+      override: detail.override ?? null,
       error: null,
-      riskSummary: (detail as any).risk_summary || "",
+      riskSummary: (detail as any).risk_summary ?? "",
     } satisfies LoaderData);
   } catch (e) {
     console.error("[ShieldCommerce] Order detail load error:", e);
