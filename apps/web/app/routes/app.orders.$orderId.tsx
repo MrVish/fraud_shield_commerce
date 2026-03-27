@@ -37,18 +37,34 @@ interface ActionData {
 }
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  const emptyResponse: LoaderData = { score: null, signals: [], override: null, error: null, riskSummary: "" };
+
+  try {
+    await authenticate.admin(request);
+  } catch (authErr) {
+    // Auth might redirect — rethrow Response objects (redirects), catch real errors
+    if (authErr instanceof Response) throw authErr;
+    console.error("[ShieldCommerce] Auth error on order detail:", authErr);
+    return json({ ...emptyResponse, error: "Authentication failed." });
+  }
 
   const orderId = params.orderId;
   if (!orderId) {
-    return json({ score: null, signals: [], override: null, error: "Missing order ID", riskSummary: "" } satisfies LoaderData);
+    return json({ ...emptyResponse, error: "Missing order ID" });
   }
 
   try {
+    console.log(`[ShieldCommerce] Fetching order detail for orderId=${orderId}`);
     const detail = await getOrderDetail(1, orderId);
+    console.log(`[ShieldCommerce] Got order detail:`, JSON.stringify({ id: detail?.id, risk_score: detail?.risk_score, signalCount: detail?.signals?.length }));
+
+    if (!detail || !detail.id) {
+      return json({ ...emptyResponse, error: "Order not found." });
+    }
+
     const score: OrderScore = {
       id: detail.id,
-      shopify_order_id: detail.shopify_order_id,
+      shopify_order_id: detail.shopify_order_id ?? `order-${orderId}`,
       risk_score: detail.risk_score ?? 0,
       risk_level: detail.risk_level ?? "low",
       signals_json: detail.signals_json ?? {},
@@ -58,27 +74,24 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       created_at: detail.created_at ?? new Date().toISOString(),
       risk_summary: (detail as any).risk_summary ?? "",
     };
+
+    const signals: ScoringSignal[] = (detail.signals ?? []).map((s: any) => ({
+      signal_name: s?.name ?? "unknown",
+      signal_value: String(s?.value ?? ""),
+      signal_weight: Number(s?.weight ?? 0),
+      raw_data_json: s?.raw_data ?? null,
+    }));
+
     return json({
       score,
-      signals: (detail.signals ?? []).map((s) => ({
-        signal_name: s.name ?? "",
-        signal_value: s.value ?? "",
-        signal_weight: s.weight ?? 0,
-        raw_data_json: s.raw_data ?? null,
-      })),
+      signals,
       override: detail.override ?? null,
       error: null,
       riskSummary: (detail as any).risk_summary ?? "",
     } satisfies LoaderData);
-  } catch (e) {
-    console.error("[ShieldCommerce] Order detail load error:", e);
-    return json({
-      score: null,
-      signals: [],
-      override: null,
-      error: "Unable to load order details.",
-      riskSummary: "",
-    } satisfies LoaderData);
+  } catch (e: any) {
+    console.error("[ShieldCommerce] Order detail load error:", e?.message ?? e);
+    return json({ ...emptyResponse, error: `Unable to load order details: ${e?.message ?? "Unknown error"}` });
   }
 };
 
